@@ -3,6 +3,7 @@ from OpenGL.GLUT import *
 from OpenGL.GLU import *
 import time
 import heapq
+import math
 
 # Grid settings
 GRID_SIZE = 10
@@ -101,17 +102,25 @@ def draw_cell(x, y, color):
     glEnd()
 
 def draw_grid():
-    """Draw the entire grid."""
+    """Draw the entire grid with enhanced visuals."""
     for x in range(GRID_SIZE):
         for y in range(GRID_SIZE):
             if (x, y) in astar.obstacles:
                 draw_cell(x, y, BLACK)
+                draw_circle_in_cell(x, y, CELL_SIZE // 4, WHITE)  # Highlight obstacles
             elif (x, y) == astar.start:
                 draw_cell(x, y, BLUE)
+                draw_circle_in_cell(x, y, CELL_SIZE // 4, RED)  # Highlight start
             elif (x, y) == astar.goal:
                 draw_cell(x, y, RED)
+                draw_circle_in_cell(x, y, CELL_SIZE // 4, GREEN)  # Highlight goal
             elif (x, y) in astar.path:
                 draw_cell(x, y, GREEN)
+                # Draw lines connecting path cells
+                path_index = astar.path.index((x, y))
+                if path_index > 0:
+                    draw_line_between_cells(astar.path[path_index - 1], (x, y), BLUE)
+                    draw_arrow(astar.path[path_index - 1], (x, y), BLUE)
             else:
                 draw_cell(x, y, WHITE)
 
@@ -281,30 +290,32 @@ def draw_line_between_cells(cell1, cell2, color):
     y2 = y2 * CELL_SIZE + CELL_SIZE // 2
     MidpointLine(x1, y1, x2, y2, color)
 
-def draw_grid():
-    """Draw the entire grid with enhanced visuals."""
-    for x in range(GRID_SIZE):
-        for y in range(GRID_SIZE):
-            if (x, y) in astar.obstacles:
-                draw_cell(x, y, BLACK)
-                draw_circle_in_cell(x, y, CELL_SIZE // 4, WHITE)  # Highlight obstacles
-            elif (x, y) == astar.start:
-                draw_cell(x, y, BLUE)
-                draw_circle_in_cell(x, y, CELL_SIZE // 4, RED)  # Highlight start
-            elif (x, y) == astar.goal:
-                draw_cell(x, y, RED)
-                draw_circle_in_cell(x, y, CELL_SIZE // 4, GREEN)  # Highlight goal
-            elif (x, y) in astar.path:
-                draw_cell(x, y, GREEN)
-                # Draw lines connecting path cells
-                path_index = astar.path.index((x, y))
-                if path_index > 0:
-                    draw_line_between_cells(astar.path[path_index - 1], (x, y), BLUE)
-            else:
-                draw_cell(x, y, WHITE)
+def draw_arrow(start, end, color):
+    """Draw an arrow from start to end."""
+    glColor3f(*color)
+    glBegin(GL_LINES)
+    glVertex2f(start[0] * CELL_SIZE + CELL_SIZE / 2, start[1] * CELL_SIZE + CELL_SIZE / 2)
+    glVertex2f(end[0] * CELL_SIZE + CELL_SIZE / 2, end[1] * CELL_SIZE + CELL_SIZE / 2)
+    glEnd()
 
+    # Calculate the angle for the arrowhead
+    angle = math.atan2(end[1] - start[1], end[0] - start[0])
+    arrow_length = 10
+    arrow_angle = math.radians(45)
 
-
+    # Draw the arrowhead
+    glBegin(GL_LINES)
+    glVertex2f(end[0] * CELL_SIZE + CELL_SIZE / 2, end[1] * CELL_SIZE + CELL_SIZE / 2)
+    glVertex2f(
+        end[0] * CELL_SIZE + CELL_SIZE / 2 - arrow_length * math.cos(angle - arrow_angle),
+        end[1] * CELL_SIZE + CELL_SIZE / 2 - arrow_length * math.sin(angle - arrow_angle)
+    )
+    glVertex2f(end[0] * CELL_SIZE + CELL_SIZE / 2, end[1] * CELL_SIZE + CELL_SIZE / 2)
+    glVertex2f(
+        end[0] * CELL_SIZE + CELL_SIZE / 2 - arrow_length * math.cos(angle + arrow_angle),
+        end[1] * CELL_SIZE + CELL_SIZE / 2 - arrow_length * math.sin(angle + arrow_angle)
+    )
+    glEnd()
 
 if __name__ == "__main__":
     main()
