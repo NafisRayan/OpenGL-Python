@@ -61,6 +61,8 @@ class SniperGame:
         self.base_speed = 1.0  # Initialize base_speed with a default value
         self.level = 1
         self.update_base_speed()  # Call this method to set the initial base_speed based on level
+
+        self.last_speed_increase = time.time()
     
 
 
@@ -75,6 +77,12 @@ class SniperGame:
 
     def update_base_speed(self):
         self.base_speed = 1.0 + (self.level * 0.5)
+
+    def increase_base_speed(self):
+        current_time = time.time()
+        if current_time - self.last_speed_increase >= 5.0 and not self.game_over:
+            self.base_speed += 0.5
+            self.last_speed_increase = current_time
 
 
 
@@ -322,6 +330,10 @@ class SniperGame:
 
     def update(self):
         current_time = time.time()
+        
+        # Check for base speed increase
+        self.increase_base_speed()
+        
         if not self.game_over:
             # Update targets
             self.update_targets()
