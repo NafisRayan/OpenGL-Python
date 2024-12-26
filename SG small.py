@@ -154,6 +154,8 @@ class MultiTargetSniperGame:
             GL.glColor3f(1.0, 0.0, 0.0)
             GL.glRasterPos2f(self.width//2 - 100, self.height//2)
             GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Game Over! Final Score: {self.score}".encode())
+            GL.glRasterPos2f(self.width//2 - 80, self.height//2 - 30)
+            GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, b"Press R to Restart")
 
         GLUT.glutSwapBuffers()
 
@@ -167,9 +169,9 @@ class MultiTargetSniperGame:
             self.shoot(x, self.height - y)
 
     def keyboard(self, key, x, y):
-        if key == b'r' and self.game_over:
+        if key == b'r':  # Restart the game
             self.__init__()
-        elif key == b'q':
+        elif key == b'q':  # Quit the game
             GLUT.glutLeaveMainLoop()
 
     def mouse_motion(self, x, y):
