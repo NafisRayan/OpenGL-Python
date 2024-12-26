@@ -2,6 +2,37 @@
     {
         "index": 1,
         "score": 200,
-        "time": 5.5
+        "time": 5.5,
+        "level": 1
+    },
+    {
+        "index": 2,
+        "score": 2700,
+        "time": 53.33,
+        "level": 4
+    },
+    {
+        "index": 3,
+        "score": 500,
+        "time": 8.03,
+        "level": 1
+    },
+    {
+        "index": 4,
+        "score": 1500,
+        "time": 20.55,
+        "level": 3
+    },
+    {
+        "index": 5,
+        "score": 300,
+        "time": 8.09,
+        "level": 1
+    },
+    {
+        "index": 6,
+        "score": 3000,
+        "time": 61.48,
+        "level": 5
     }
 ]

@@ -16,6 +16,7 @@ class MultiTargetSniperGame:
         self.score = 0
         self.ammo = 20
         self.game_over = False
+        self.level = 1  # Start at level 1
         self.targets = self.spawn_targets()
         self.start_time = time.time()  # Track game start time
         self.scores_file = "scores.json"  # File to save scores
@@ -23,13 +24,13 @@ class MultiTargetSniperGame:
 
     def spawn_targets(self):
         targets = []
-        num_targets = random.randint(5, 10)  # Spawn 5 to 10 targets
+        num_targets = 5 + self.level  # Increase number of targets with level
         for _ in range(num_targets):
             target = {
                 'x': random.randint(100, self.width - 100),
                 'y': random.randint(100, self.height - 100),
                 'radius': random.randint(15, 40),  # Random radius
-                'speed': 2.0,
+                'speed': 2.0 + (self.level * 0.5),  # Increase speed with level
                 'direction': random.uniform(0, 2 * math.pi),
                 'color': (random.random(), random.random(), random.random())  # Random color
             }
@@ -138,15 +139,18 @@ class MultiTargetSniperGame:
                 self.game_over = True
                 self.save_score()  # Save score when game ends
 
-        if not self.targets:  # If all targets are destroyed, spawn new ones
+        if not self.targets:  # If all targets are destroyed, go to next level
+            self.level += 1
             self.targets = self.spawn_targets()
+            self.ammo += 10  # Refill ammo for the next level
 
     def save_score(self):
         elapsed_time = time.time() - self.start_time
         score_entry = {
             'index': len(self.scores) + 1,  # Auto-increment index
             'score': self.score,
-            'time': round(elapsed_time, 2)  # Time in seconds, rounded to 2 decimal places
+            'time': round(elapsed_time, 2),  # Time in seconds, rounded to 2 decimal places
+            'level': self.level  # Save the level achieved
         }
         self.scores.append(score_entry)
         with open(self.scores_file, 'w') as f:
@@ -155,7 +159,12 @@ class MultiTargetSniperGame:
     def load_scores(self):
         if os.path.exists(self.scores_file):
             with open(self.scores_file, 'r') as f:
-                return json.load(f)
+                scores = json.load(f)
+                # Ensure all score entries have the 'level' key
+                for entry in scores:
+                    if 'level' not in entry:
+                        entry['level'] = 1  # Default level for older entries
+                return scores
         return []
 
     def draw_hud(self):
@@ -164,6 +173,8 @@ class MultiTargetSniperGame:
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Score: {self.score}".encode())
         GL.glRasterPos2f(10, self.height - 40)
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Ammo: {self.ammo}".encode())
+        GL.glRasterPos2f(10, self.height - 60)
+        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Level: {self.level}".encode())
 
     def display(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
@@ -185,7 +196,7 @@ class MultiTargetSniperGame:
             GL.glColor3f(0.0, 1.0, 0.0)  # Green for scores
             for score_entry in self.scores[-5:]:  # Show last 5 scores
                 GL.glRasterPos2f(self.width//2 - 100, self.height//2 - y_offset)
-                GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Score {score_entry['index']}: {score_entry['score']} (Time: {score_entry['time']}s)".encode())
+                GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Score {score_entry['index']}: {score_entry['score']} (Time: {score_entry['time']}s, Level: {score_entry['level']})".encode())
                 y_offset += 20
 
         GLUT.glutSwapBuffers()
@@ -193,6 +204,10 @@ class MultiTargetSniperGame:
     def update(self):
         if not self.game_over:
             self.update_targets()
+            # Check if ammo is 0 and end the game
+            if self.ammo <= 0:
+                self.game_over = True
+                self.save_score()  # Save score when game ends
         GLUT.glutPostRedisplay()
 
     def mouse(self, button, state, x, y):
