@@ -17,12 +17,10 @@ class MultiTargetSniperGame:
         self.ammo = 20
         self.game_over = False
         self.level = 1  # Start at level 1
-        self.speed_increment = 0  # Initialize speed increment
         self.targets = self.spawn_targets()
         self.start_time = time.time()  # Track game start time
         self.scores_file = "scores.json"  # File to save scores
         self.scores = self.load_scores()  # Load existing scores
-        self.last_speed_increase = time.time()  # Track last speed increase
 
     def spawn_targets(self):
         targets = []
@@ -32,7 +30,7 @@ class MultiTargetSniperGame:
                 'x': random.randint(100, self.width - 100),
                 'y': random.randint(100, self.height - 100),
                 'radius': random.randint(15, 40),  # Random radius
-                'speed': 2.0 + (self.level * 0.5) + self.speed_increment,  # Base speed + level + speed increment
+                'speed': 2.0 + (self.level * 0.5),  # Increase speed with level
                 'direction': random.uniform(0, 2 * math.pi),
                 'color': (random.random(), random.random(), random.random())  # Random color
             }
@@ -177,8 +175,6 @@ class MultiTargetSniperGame:
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Ammo: {self.ammo}".encode())
         GL.glRasterPos2f(10, self.height - 60)
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Level: {self.level}".encode())
-        GL.glRasterPos2f(10, self.height - 80)
-        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Speed Increment: +{self.speed_increment}".encode())
 
     def display(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
@@ -212,16 +208,6 @@ class MultiTargetSniperGame:
             if self.ammo <= 0:
                 self.game_over = True
                 self.save_score()  # Save score when game ends
-
-            # Increase speed every 7 seconds
-            current_time = time.time()
-            if current_time - self.last_speed_increase >= 7:
-                self.speed_increment += 2
-                self.last_speed_increase = current_time
-                # Update speed of existing targets
-                for target in self.targets:
-                    target['speed'] += 2
-
         GLUT.glutPostRedisplay()
 
     def mouse(self, button, state, x, y):

@@ -34,5 +34,11 @@
         "score": 3000,
         "time": 61.48,
         "level": 5
+    },
+    {
+        "index": 7,
+        "score": 400,
+        "time": 21.68,
+        "level": 1
     }
 ]
