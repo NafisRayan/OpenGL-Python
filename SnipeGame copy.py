@@ -58,6 +58,10 @@ class SniperGame:
         self.spawn_initial_targets()
 
         self.start_time = time.time()
+        self.base_speed = 1.0  # Initialize base_speed with a default value
+        self.level = 1
+        self.update_base_speed()  # Call this method to set the initial base_speed based on level
+    
 
 
 
@@ -69,6 +73,8 @@ class SniperGame:
         elapsed_time = current_time - self.start_time
         return elapsed_time
 
+    def update_base_speed(self):
+        self.base_speed = 1.0 + (self.level * 0.5)
 
 
 
@@ -174,6 +180,8 @@ class SniperGame:
                              self.scope_x + 5, self.scope_y + offset)
 
     def spawn_initial_targets(self):
+        self.level += 1  # Increment level before spawning targets
+        self.update_base_speed()  # Update base_speed based on new level
         num_targets = 3 + self.level
         for _ in range(num_targets):
             self.spawn_target()
@@ -183,7 +191,7 @@ class SniperGame:
 
     def spawn_target(self):
         target_type = random.choice(self.target_types)
-        base_speed = 1 + (self.level * 0.5)
+        base_speed = self.base_speed
         base_radius = 15
         
         if target_type == 'fast':
@@ -424,8 +432,14 @@ class SniperGame:
             GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18,
                                   f"Combo: x{self.combo}".encode())
         
+        # Draw base speed
+        GL.glRasterPos2f(10, self.height - 120)
+        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18,
+                            f"Base Speed: {self.base_speed:.2f}".encode())
+    
+        
         # Draw active powerups
-        y_offset = 100
+        y_offset = 140
         if self.scope_stability != 1.0:
             GL.glRasterPos2f(10, self.height - y_offset)
             GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18,
@@ -440,7 +454,7 @@ class SniperGame:
         
         # Draw achievements
         if any(self.achievements.values()):
-            y_offset = 120
+            y_offset = 160
             GL.glColor3f(1.0, 1.0, 0.0)  # Yellow for achievements
             for achievement, unlocked in self.achievements.items():
                 if unlocked:
@@ -454,10 +468,9 @@ class SniperGame:
         minutes, seconds = divmod(elapsed_time, 60)
         hours, minutes = divmod(minutes, 60)
         time_string = f"{int(hours):02d}:{int(minutes):02d}:{seconds:.1f}"
-        GL.glRasterPos2f(10, self.height - 100)
+        GL.glRasterPos2f(10, self.height - 140)
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18,
                               f"Game Time: {time_string}".encode())
-
 
     def display(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
