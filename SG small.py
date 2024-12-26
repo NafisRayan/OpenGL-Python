@@ -4,7 +4,7 @@ import math
 import random
 import time
 
-class SimpleSniperGame:
+class MultiTargetSniperGame:
     def __init__(self):
         self.width = 800
         self.height = 600
@@ -12,18 +12,24 @@ class SimpleSniperGame:
         self.scope_y = self.height // 2
         self.scope_radius = 30
         self.score = 0
-        self.ammo = 10
+        self.ammo = 20
         self.game_over = False
-        self.target = self.spawn_target()
+        self.targets = self.spawn_targets()
 
-    def spawn_target(self):
-        return {
-            'x': random.randint(100, self.width - 100),
-            'y': random.randint(100, self.height - 100),
-            'radius': 20,
-            'speed': 2.0,
-            'direction': random.uniform(0, 2 * math.pi)
-        }
+    def spawn_targets(self):
+        targets = []
+        num_targets = random.randint(5, 10)  # Spawn 5 to 10 targets
+        for _ in range(num_targets):
+            target = {
+                'x': random.randint(100, self.width - 100),
+                'y': random.randint(100, self.height - 100),
+                'radius': random.randint(15, 40),  # Random radius
+                'speed': 2.0,
+                'direction': random.uniform(0, 2 * math.pi),
+                'color': (random.random(), random.random(), random.random())  # Random color
+            }
+            targets.append(target)
+        return targets
 
     def draw_scope(self):
         GL.glColor3f(1.0, 1.0, 1.0)
@@ -33,9 +39,10 @@ class SimpleSniperGame:
         self.midpoint_line(self.scope_x, self.scope_y - self.scope_radius,
                           self.scope_x, self.scope_y + self.scope_radius)
 
-    def draw_target(self):
-        GL.glColor3f(1.0, 0.0, 0.0)
-        self.midpoint_circle(self.target['x'], self.target['y'], self.target['radius'])
+    def draw_targets(self):
+        for target in self.targets:
+            GL.glColor3f(*target['color'])
+            self.midpoint_circle(target['x'], target['y'], target['radius'])
 
     def midpoint_circle(self, center_x, center_y, radius):
         x = radius
@@ -96,31 +103,37 @@ class SimpleSniperGame:
             decision += 2 * dy
         GL.glEnd()
 
-    def update_target(self):
-        self.target['x'] += math.cos(self.target['direction']) * self.target['speed']
-        self.target['y'] += math.sin(self.target['direction']) * self.target['speed']
+    def update_targets(self):
+        for target in self.targets:
+            target['x'] += math.cos(target['direction']) * target['speed']
+            target['y'] += math.sin(target['direction']) * target['speed']
 
-        # Bounce off walls
-        if self.target['x'] - self.target['radius'] < 0 or self.target['x'] + self.target['radius'] > self.width:
-            self.target['direction'] = math.pi - self.target['direction']
-        if self.target['y'] - self.target['radius'] < 0 or self.target['y'] + self.target['radius'] > self.height:
-            self.target['direction'] = -self.target['direction']
+            # Bounce off walls
+            if target['x'] - target['radius'] < 0 or target['x'] + target['radius'] > self.width:
+                target['direction'] = math.pi - target['direction']
+            if target['y'] - target['radius'] < 0 or target['y'] + target['radius'] > self.height:
+                target['direction'] = -target['direction']
 
     def shoot(self, x, y):
         if self.ammo <= 0 or self.game_over:
             return
 
         self.ammo -= 1
-        dx = x - self.target['x']
-        dy = y - self.target['y']
-        distance = math.sqrt(dx * dx + dy * dy)
+        for target in self.targets[:]:
+            dx = x - target['x']
+            dy = y - target['y']
+            distance = math.sqrt(dx * dx + dy * dy)
 
-        if distance < self.target['radius']:
-            self.score += 100
-            self.target = self.spawn_target()
+            if distance < target['radius']:
+                self.score += 100
+                self.targets.remove(target)
+                break
         else:
             if self.ammo <= 0:
                 self.game_over = True
+
+        if not self.targets:  # If all targets are destroyed, spawn new ones
+            self.targets = self.spawn_targets()
 
     def draw_hud(self):
         GL.glColor3f(1.0, 1.0, 1.0)
@@ -133,7 +146,7 @@ class SimpleSniperGame:
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
         GL.glLoadIdentity()
 
-        self.draw_target()
+        self.draw_targets()
         self.draw_scope()
         self.draw_hud()
 
@@ -146,7 +159,7 @@ class SimpleSniperGame:
 
     def update(self):
         if not self.game_over:
-            self.update_target()
+            self.update_targets()
         GLUT.glutPostRedisplay()
 
     def mouse(self, button, state, x, y):
@@ -171,12 +184,12 @@ class SimpleSniperGame:
         GL.glMatrixMode(GL.GL_MODELVIEW)
 
 def main():
-    game = SimpleSniperGame()
+    game = MultiTargetSniperGame()
 
     GLUT.glutInit()
     GLUT.glutInitDisplayMode(GLUT.GLUT_DOUBLE | GLUT.GLUT_RGB)
     GLUT.glutInitWindowSize(game.width, game.height)
-    GLUT.glutCreateWindow(b"Simple Sniper Game")
+    GLUT.glutCreateWindow(b"Multi-Target Sniper Game")
 
     GL.glClearColor(0.0, 0.0, 0.0, 0.0)
     GL.glPointSize(2.0)
