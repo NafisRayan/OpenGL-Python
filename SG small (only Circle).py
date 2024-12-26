@@ -28,15 +28,13 @@ class MultiTargetSniperGame:
         targets = []
         num_targets = 5 + self.level  # Increase number of targets with level
         for _ in range(num_targets):
-            shape = random.choice(['circle', 'square', 'triangle'])  # Random shape
             target = {
                 'x': random.randint(100, self.width - 100),
                 'y': random.randint(100, self.height - 100),
-                'radius': random.randint(20, 40),  # Random radius
+                'radius': random.randint(15, 40),  # Random radius
                 'speed': 2.0 + (self.level * 0.5) + self.speed_increment,  # Base speed + level + speed increment
                 'direction': random.uniform(0, 2 * math.pi),
-                'color': (random.random(), random.random(), random.random()),  # Random color
-                'shape': shape  # Assign random shape
+                'color': (random.random(), random.random(), random.random())  # Random color
             }
             targets.append(target)
         return targets
@@ -52,12 +50,7 @@ class MultiTargetSniperGame:
     def draw_targets(self):
         for target in self.targets:
             GL.glColor3f(*target['color'])
-            if target['shape'] == 'circle':
-                self.midpoint_circle(target['x'], target['y'], target['radius'])
-            elif target['shape'] == 'square':
-                self.midpoint_square(target['x'], target['y'], target['radius'])
-            elif target['shape'] == 'triangle':
-                self.midpoint_triangle(target['x'], target['y'], target['radius'])
+            self.midpoint_circle(target['x'], target['y'], target['radius'])
 
     def midpoint_circle(self, center_x, center_y, radius):
         x = radius
@@ -87,23 +80,6 @@ class MultiTargetSniperGame:
         ]
         for px, py in points:
             GL.glVertex2f(px, py)
-
-    def midpoint_square(self, center_x, center_y, size):
-        half_size = size // 2
-        GL.glBegin(GL.GL_LINE_LOOP)
-        GL.glVertex2f(center_x - half_size, center_y - half_size)
-        GL.glVertex2f(center_x + half_size, center_y - half_size)
-        GL.glVertex2f(center_x + half_size, center_y + half_size)
-        GL.glVertex2f(center_x - half_size, center_y + half_size)
-        GL.glEnd()
-
-    def midpoint_triangle(self, center_x, center_y, size):
-        height = size * math.sqrt(3) / 2
-        GL.glBegin(GL.GL_LINE_LOOP)
-        GL.glVertex2f(center_x, center_y + height / 2)
-        GL.glVertex2f(center_x - size / 2, center_y - height / 2)
-        GL.glVertex2f(center_x + size / 2, center_y - height / 2)
-        GL.glEnd()
 
     def midpoint_line(self, x1, y1, x2, y2):
         dx = abs(x2 - x1)
@@ -202,7 +178,7 @@ class MultiTargetSniperGame:
         GL.glRasterPos2f(10, self.height - 60)
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Level: {self.level}".encode())
         GL.glRasterPos2f(10, self.height - 80)
-        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Time Increment: +{self.speed_increment}".encode())
+        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Speed Increment: +{self.speed_increment}".encode())
 
     def display(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
@@ -240,11 +216,11 @@ class MultiTargetSniperGame:
             # Increase speed every 7 seconds
             current_time = time.time()
             if current_time - self.last_speed_increase >= 7:
-                self.speed_increment += 1
+                self.speed_increment += 2
                 self.last_speed_increase = current_time
                 # Update speed of existing targets
                 for target in self.targets:
-                    target['speed'] += 1
+                    target['speed'] += 2
 
         GLUT.glutPostRedisplay()
 
