@@ -76,5 +76,71 @@
         "score": 1300,
         "time": 25.95,
         "level": 3
+    },
+    {
+        "index": 14,
+        "score": 300,
+        "time": 10.9,
+        "level": 1
+    },
+    {
+        "index": 15,
+        "score": 1100,
+        "time": 17.35,
+        "level": 2
+    },
+    {
+        "index": 16,
+        "score": 1300,
+        "time": 25.52,
+        "level": 3
+    },
+    {
+        "index": 17,
+        "score": 1500,
+        "time": 23.44,
+        "level": 3
+    },
+    {
+        "index": 18,
+        "score": 1500,
+        "time": 19.58,
+        "level": 3
+    },
+    {
+        "index": 19,
+        "score": 800,
+        "time": 19.42,
+        "level": 2
+    },
+    {
+        "index": 20,
+        "score": 1100,
+        "time": 24.52,
+        "level": 2
+    },
+    {
+        "index": 21,
+        "score": 1100,
+        "time": 24.21,
+        "level": 2
+    },
+    {
+        "index": 22,
+        "score": 1100,
+        "time": 21.08,
+        "level": 2
+    },
+    {
+        "index": 23,
+        "score": 1300,
+        "time": 26.33,
+        "level": 3
+    },
+    {
+        "index": 24,
+        "score": 1100,
+        "time": 19.56,
+        "level": 2
     }
 ]

@@ -3,63 +3,65 @@ import OpenGL.GLUT as GLUT
 import math
 import random
 import time
+import json
+import os
 
-class SniperGame:
+class MultiTargetSniperGame:
     def __init__(self):
-        self.width = 1024
-        self.height = 768
+        self.width = 800
+        self.height = 600
         self.scope_x = self.width // 2
         self.scope_y = self.height // 2
-        self.scope_radius = 50
+        self.scope_radius = 30
         self.score = 0
-        self.ammo = 15
+        self.ammo = 20
         self.game_over = False
-        self.reload_time = 1.0
-        self.last_shot_time = 0
-        self.can_shoot = True
-        self.level = 1
-        self.targets = []
-        self.powerups = []
-        self.hits = []
-        self.misses = []
-        self.combo = 0
-        self.max_combo = 0
-        self.last_hit_time = 0
-        self.combo_timeout = 3.0  # seconds to maintain combo
-        self.zoom_level = 1.0
-        self.scope_stability = 1.0
-        self.points_multiplier = 1.0
-        self.powerup_types = ['ammo', 'stability', 'zoom', 'multiplier']
-        self.target_types = ['normal', 'fast', 'small', 'bonus']
-        self.target_colors = {
-            'normal': (1.0, 0.0, 0.0),
-            'fast': (1.0, 0.5, 0.0),
-            'small': (0.0, 1.0, 1.0),
-            'bonus': (1.0, 1.0, 0.0)
-        }
-        self.target_points = {
-            'normal': 100,
-            'fast': 200,
-            'small': 300,
-            'bonus': 500
-        }
-        self.shake_offset = {'x': 0, 'y': 0}
-        self.shake_decay = 0.9
-        self.achievements = {
-            'perfect_shot': False,
-            'combo_master': False,
-            'sharpshooter': False
-        }
-        
-        # Initialize game state
-        self.wind_speed = 0
-        self.wind_direction = 1
+        self.level = 1  # Start at level 1
+        self.speed_increment = 0  # Initialize speed increment
+        self.targets = self.spawn_targets()
+        self.start_time = time.time()  # Track game start time
+        self.scores_file = "scores.json"  # File to save scores
+        self.scores = self.load_scores()  # Load existing scores
+        self.last_speed_increase = time.time()  # Track last speed increase
+        self.flash_start_time = 0  # Track when the flash starts
+        self.is_flashing = False  # Track if the screen is flashing
+        self.flash_duration = 3  # Duration of the flash in seconds
+        self.flash_color = (1.0, 1.0, 1.0)  # Flash color (white)
 
-        self.spawn_initial_targets()
+    def spawn_targets(self):
+        targets = []
+        num_targets = 5 + self.level  # Increase number of targets with level
+        for _ in range(num_targets):
+            shape = random.choice(['circle', 'square', 'triangle'])  # Random shape
+            target = {
+                'x': random.randint(100, self.width - 100),
+                'y': random.randint(100, self.height - 100),
+                'radius': random.randint(20, 40),  # Random radius
+                'speed': 2.0 + (self.level * 0.5) + self.speed_increment,  # Base speed + level + speed increment
+                'direction': random.uniform(0, 2 * math.pi),
+                'color': (random.random(), random.random(), random.random()),  # Random color
+                'shape': shape  # Assign random shape
+            }
+            targets.append(target)
+        return targets
 
-    # [Previous midpoint_circle and midpoint_line methods remain the same]
-    # ... [Keep all the previous geometric drawing methods]
+    def draw_scope(self):
+        GL.glColor3f(1.0, 1.0, 1.0)
+        self.midpoint_circle(self.scope_x, self.scope_y, self.scope_radius)
+        self.midpoint_line(self.scope_x - self.scope_radius, self.scope_y,
+                          self.scope_x + self.scope_radius, self.scope_y)
+        self.midpoint_line(self.scope_x, self.scope_y - self.scope_radius,
+                          self.scope_x, self.scope_y + self.scope_radius)
 
+    def draw_targets(self):
+        for target in self.targets:
+            GL.glColor3f(*target['color'])
+            if target['shape'] == 'circle':
+                self.midpoint_circle(target['x'], target['y'], target['radius'])
+            elif target['shape'] == 'square':
+                self.midpoint_square(target['x'], target['y'], target['radius'])
+            elif target['shape'] == 'triangle':
+                self.midpoint_triangle(target['x'], target['y'], target['radius'])
 
     def midpoint_circle(self, center_x, center_y, radius):
         x = radius
@@ -89,6 +91,23 @@ class SniperGame:
         ]
         for px, py in points:
             GL.glVertex2f(px, py)
+
+    def midpoint_square(self, center_x, center_y, size):
+        half_size = size // 2
+        GL.glBegin(GL.GL_LINE_LOOP)
+        GL.glVertex2f(center_x - half_size, center_y - half_size)
+        GL.glVertex2f(center_x + half_size, center_y - half_size)
+        GL.glVertex2f(center_x + half_size, center_y + half_size)
+        GL.glVertex2f(center_x - half_size, center_y + half_size)
+        GL.glEnd()
+
+    def midpoint_triangle(self, center_x, center_y, size):
+        height = size * math.sqrt(3) / 2
+        GL.glBegin(GL.GL_LINE_LOOP)
+        GL.glVertex2f(center_x, center_y + height / 2)
+        GL.glVertex2f(center_x - size / 2, center_y - height / 2)
+        GL.glVertex2f(center_x + size / 2, center_y - height / 2)
+        GL.glEnd()
 
     def midpoint_line(self, x1, y1, x2, y2):
         dx = abs(x2 - x1)
@@ -120,394 +139,182 @@ class SniperGame:
             decision += 2 * dy
         GL.glEnd()
 
-    def draw_scope(self, scope_x, scope_y):
-        # Outer circle
-        GL.glColor3f(0.0, 0.0, 0.0)
-        self.midpoint_circle(self.scope_x, self.scope_y, self.scope_radius)
-        
-        # Inner circle
-        self.midpoint_circle(self.scope_x, self.scope_y, self.scope_radius - 2)
-        
-        # Crosshairs
-        self.midpoint_line(self.scope_x - self.scope_radius, self.scope_y,
-                          self.scope_x + self.scope_radius, self.scope_y)
-        self.midpoint_line(self.scope_x, self.scope_y - self.scope_radius,
-                          self.scope_x, self.scope_y + self.scope_radius)
-        
-        # Range markers
-        for i in range(1, 4):
-            offset = i * 10
-            self.midpoint_line(self.scope_x - 5, self.scope_y + offset,
-                             self.scope_x + 5, self.scope_y + offset)
-
-    def spawn_initial_targets(self):
-        num_targets = 3 + self.level
-        for _ in range(num_targets):
-            self.spawn_target()
-        
-        if random.random() < 0.3:  # 30% chance to spawn a powerup
-            self.spawn_powerup()
-
-    def spawn_target(self):
-        target_type = random.choice(self.target_types)
-        base_speed = 1 + (self.level * 0.5)
-        base_radius = 15
-        
-        if target_type == 'fast':
-            speed = base_speed * 2
-            radius = base_radius
-        elif target_type == 'small':
-            speed = base_speed
-            radius = base_radius * 0.6
-        elif target_type == 'bonus':
-            speed = base_speed * 1.5
-            radius = base_radius * 0.8
-        else:  # normal
-            speed = base_speed
-            radius = base_radius
-
-        target = {
-            'x': random.randint(100, self.width - 100),
-            'y': random.randint(100, self.height - 100),
-            'radius': radius,
-            'direction': random.uniform(0, 2 * math.pi),
-            'speed': speed,
-            'type': target_type,
-            'points': self.target_points[target_type],
-            'creation_time': time.time(),
-            'last_direction_change': time.time()
-        }
-        self.targets.append(target)
-
-    def spawn_powerup(self):
-        powerup = {
-            'x': random.randint(100, self.width - 100),
-            'y': random.randint(100, self.height - 100),
-            'radius': 10,
-            'type': random.choice(self.powerup_types),
-            'duration': 10.0,  # seconds
-            'creation_time': time.time(),
-            'last_direction_change': time.time()
-        }
-        self.powerups.append(powerup)
-
-    def apply_powerup(self, powerup_type):
-        if powerup_type == 'ammo':
-            self.ammo += 5
-        elif powerup_type == 'stability':
-            self.scope_stability = 0.5
-        elif powerup_type == 'zoom':
-            self.zoom_level = 1.5
-        elif powerup_type == 'multiplier':
-            self.points_multiplier = 2.0
-
-    def update_shake(self):
-        self.shake_offset['x'] *= self.shake_decay
-        self.shake_offset['y'] *= self.shake_decay
-        if abs(self.shake_offset['x']) < 0.1:
-            self.shake_offset['x'] = 0
-        if abs(self.shake_offset['y']) < 0.1:
-            self.shake_offset['y'] = 0
-
-    def add_screen_shake(self):
-        self.shake_offset = {
-            'x': random.uniform(-5, 5),
-            'y': random.uniform(-5, 5)
-        }
-
-    def draw_target(self, target):
-        color = self.target_colors[target['type']]
-        GL.glColor3f(*color)
-        
-        # Draw main target circle
-        self.midpoint_circle(target['x'], target['y'], target['radius'])
-        
-        # Draw inner circles for different target types
-        if target['type'] == 'bonus':
-            self.midpoint_circle(target['x'], target['y'], target['radius'] * 0.7)
-            self.midpoint_circle(target['x'], target['y'], target['radius'] * 0.4)
-        elif target['type'] == 'fast':
-            # Draw speed indicators
-            angle = math.atan2(target['direction'], target['direction'])
-            end_x = target['x'] + math.cos(angle) * target['radius'] * 1.5
-            end_y = target['y'] + math.sin(angle) * target['radius'] * 1.5
-            self.midpoint_line(target['x'], target['y'], end_x, end_y)
     def update_targets(self):
-        current_time = time.time()
-        
-        # Apply wind effect
-        self.wind_speed = random.uniform(-0.5, 0.5)  # Random wind speed between -0.5 and 0.5
-        self.wind_direction = 1 if self.wind_speed > 0 else -1  # Wind direction
-        
         for target in self.targets:
-            # Update position with wind effect
-            target['x'] += (math.cos(target['direction']) * target['speed'] + 
-                           self.wind_speed * 0.5)
+            target['x'] += math.cos(target['direction']) * target['speed']
             target['y'] += math.sin(target['direction']) * target['speed']
-            
+
             # Bounce off walls
-            if target['x'] - target['radius'] < 0:
-                target['x'] = target['radius']
+            if target['x'] - target['radius'] < 0 or target['x'] + target['radius'] > self.width:
                 target['direction'] = math.pi - target['direction']
-            elif target['x'] + target['radius'] > self.width:
-                target['x'] = self.width - target['radius']
-                target['direction'] = math.pi - target['direction']
-                target['direction'] = math.pi - target['direction']
-            if target['y'] - target['radius'] < 0:
-                target['y'] = target['radius']
+            if target['y'] - target['radius'] < 0 or target['y'] + target['radius'] > self.height:
                 target['direction'] = -target['direction']
-            elif target['y'] + target['radius'] > self.height:
-                target['y'] = self.height - target['radius']
-                target['direction'] = -target['direction']
-            
-            # Random direction changes
-            if current_time - target.get('last_direction_change', 0) > 2:
-                if random.random() < 0.1:
-                    target['direction'] += random.uniform(-math.pi/4, math.pi/4)
-                    target['last_direction_change'] = current_time
-                target['direction'] = -target['direction']
-    def draw_powerup(self, powerup):
-        if powerup['type'] == 'ammo':
-            GL.glColor3f(0.0, 1.0, 0.0)  # Green
-        elif powerup['type'] == 'stability':
-            GL.glColor3f(0.0, 0.0, 1.0)  # Blue
-        elif powerup['type'] == 'zoom':
-            GL.glColor3f(1.0, 0.0, 1.0)  # Purple
-        else:  # multiplier
-            GL.glColor3f(1.0, 1.0, 0.0)  # Yellow
-
-        self.midpoint_circle(powerup['x'], powerup['y'], powerup['radius'])
-        self.midpoint_circle(powerup['x'], powerup['y'], powerup['radius'] * 0.6)
-
-    def update(self):
-        current_time = time.time()
-        
-        if not self.game_over:
-            # Update targets
-            self.update_targets()
-            
-            # Update powerups
-            for powerup in self.powerups[:]:
-                if current_time - powerup['creation_time'] > 10.0:  # Remove after 10 seconds
-                    self.powerups.remove(powerup)
-            
-            # Update reload status
-            if not self.can_shoot and current_time - self.last_shot_time >= self.reload_time:
-                self.can_shoot = True
-            
-            # Update combo
-            if current_time - self.last_hit_time > self.combo_timeout:
-                self.combo = 0
-            
-            # Update screen shake
-            self.update_shake()
-            
-            # Check for level completion
-            if len(self.targets) == 0:
-                self.level += 1
-                self.spawn_initial_targets()
-                self.ammo += 5  # Bonus ammo for completing level
 
     def shoot(self, x, y):
-        if not self.can_shoot or self.ammo <= 0 or self.game_over:
+        if self.ammo <= 0 or self.game_over:
             return
 
-        current_time = time.time()
         self.ammo -= 1
-        self.can_shoot = False
-        self.last_shot_time = current_time
-        self.add_screen_shake()
-
-        # Check for hits on targets
         hit = False
         for target in self.targets[:]:
             dx = x - target['x']
             dy = y - target['y']
             distance = math.sqrt(dx * dx + dy * dy)
-            
-            if distance < target['radius']:
-                hit = True
-                points = target['points'] * self.points_multiplier * (1 + self.combo * 0.1)
-                self.score += int(points)
-                self.targets.remove(target)
-                self.hits.append({'x': x, 'y': y, 'time': current_time, 'points': int(points)})
-                self.combo += 1
-                self.last_hit_time = current_time
-                self.max_combo = max(self.max_combo, self.combo)
-                
-                # Achievement checks
-                if distance < target['radius'] * 0.2:
-                    self.achievements['perfect_shot'] = True
-                if self.combo >= 5:
-                    self.achievements['combo_master'] = True
-                if self.score >= 5000:
-                    self.achievements['sharpshooter'] = True
-                
-                if len(self.targets) == 0:
-                    self.spawn_initial_targets()
-                break
 
-        # Check for hits on powerups
-        for powerup in self.powerups[:]:
-            dx = x - powerup['x']
-            dy = y - powerup['y']
-            distance = math.sqrt(dx * dx + dy * dy)
-            
-            if distance < powerup['radius']:
-                self.apply_powerup(powerup['type'])
-                self.powerups.remove(powerup)
+            if target['shape'] == 'circle' and distance < target['radius']:
                 hit = True
+            elif target['shape'] == 'square' and self.is_point_in_square(x, y, target['x'], target['y'], target['radius'] * 2):
+                hit = True
+            elif target['shape'] == 'triangle' and self.is_point_in_triangle(x, y, target['x'], target['y'], target['radius'] * 2):
+                hit = True
+
+            if hit:
+                self.score += 100
+                self.targets.remove(target)
                 break
 
         if not hit:
-            self.misses.append({'x': x, 'y': y, 'time': current_time})
-            self.combo = 0
+            if self.is_flashing:  # End game if missed during flash
+                self.game_over = True
+                self.save_score()
+            else:
+                if self.ammo <= 0:
+                    self.game_over = True
+                    self.save_score()
 
-        if self.ammo <= 0:
-            self.game_over = True
+        if not self.targets:  # If all targets are destroyed, go to next level
+            self.level += 1
+            self.targets = self.spawn_targets()
+            self.ammo += 10  # Refill ammo for the next level
+
+    def is_point_in_square(self, px, py, center_x, center_y, size):
+        half_size = size // 2
+        return (center_x - half_size <= px <= center_x + half_size and
+                center_y - half_size <= py <= center_y + half_size)
+
+    def is_point_in_triangle(self, px, py, center_x, center_y, size):
+        height = size * math.sqrt(3) / 2
+        x1, y1 = center_x, center_y + height / 2
+        x2, y2 = center_x - size / 2, center_y - height / 2
+        x3, y3 = center_x + size / 2, center_y - height / 2
+
+        def sign(a, b, c):
+            return (a[0] - c[0]) * (b[1] - c[1]) - (b[0] - c[0]) * (a[1] - c[1])
+
+        d1 = sign((px, py), (x1, y1), (x2, y2))
+        d2 = sign((px, py), (x2, y2), (x3, y3))
+        d3 = sign((px, py), (x3, y3), (x1, y1))
+
+        has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
+        has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
+
+        return not (has_neg and has_pos)
+
+    def save_score(self):
+        elapsed_time = time.time() - self.start_time
+        score_entry = {
+            'index': len(self.scores) + 1,  # Auto-increment index
+            'score': self.score,
+            'time': round(elapsed_time, 2),  # Time in seconds, rounded to 2 decimal places
+            'level': self.level  # Save the level achieved
+        }
+        self.scores.append(score_entry)
+        with open(self.scores_file, 'w') as f:
+            json.dump(self.scores, f, indent=4)
+
+    def load_scores(self):
+        if os.path.exists(self.scores_file):
+            with open(self.scores_file, 'r') as f:
+                scores = json.load(f)
+                # Ensure all score entries have the 'level' key
+                for entry in scores:
+                    if 'level' not in entry:
+                        entry['level'] = 1  # Default level for older entries
+                return scores
+        return []
 
     def draw_hud(self):
         GL.glColor3f(1.0, 1.0, 1.0)
-        
-        # Draw score
         GL.glRasterPos2f(10, self.height - 20)
-        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, 
-                             f"Score: {self.score}".encode())
-        
-        # Draw ammo
+        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Score: {self.score}".encode())
         GL.glRasterPos2f(10, self.height - 40)
-        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, 
-                             f"Ammo: {self.ammo}".encode())
-        
-        # Draw level
+        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Ammo: {self.ammo}".encode())
         GL.glRasterPos2f(10, self.height - 60)
-        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, 
-                             f"Level: {self.level}".encode())
-        
-        # Draw combo
-        if self.combo > 0:
-            GL.glRasterPos2f(10, self.height - 80)
-            GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, 
-                                 f"Combo: x{self.combo}".encode())
-        
-        # Draw active powerups
-        y_offset = 100
-        if self.scope_stability != 1.0:
-            GL.glRasterPos2f(10, self.height - y_offset)
-            GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, 
-                                 b"Stability Boost Active")
-            y_offset += 20
-        
-        if self.points_multiplier != 1.0:
-            GL.glRasterPos2f(10, self.height - y_offset)
-            GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, 
-                                 b"Score Multiplier Active")
-            y_offset += 20
-        
-        # Draw achievements
-        if any(self.achievements.values()):
-            y_offset = 120
-            GL.glColor3f(1.0, 1.0, 0.0)  # Yellow for achievements
-            for achievement, unlocked in self.achievements.items():
-                if unlocked:
-                    GL.glRasterPos2f(self.width - 200, self.height - y_offset)
-                    GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, 
-                                         f"Achievement: {achievement.replace('_', ' ').title()}".encode())
-                    y_offset += 20
-
-    def draw_feedback(self):
-        # Implement the feedback drawing logic here
-        # This could include drawing hit/miss indicators, scoring effects, etc.
-        
-        # Example implementation:
-        GL.glColor3f(1.0, 0.0, 0.0)  # Red color for feedback
-        
-        # Draw a small circle where the shot was fired
-        self.midpoint_circle(self.scope_x, self.scope_y, 5)
-        
-        # Optionally, you could also draw the trajectory of the bullet
-        # self.draw_trajectory()
-
-    def show_loading_screen(self):
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT)
-        GL.glLoadIdentity()
-        
-        # Set up font rendering
-        font = GLUT.GLUT_BITMAP_HELVETICA_18
-        
-        # Display high score
-        high_score_text = f"High Score: {self.load_high_score()}"
-        x_pos = self.width // 2 - GLUT.glutBitmapWidth(font, high_score_text) // 2
-        y_pos = self.height // 2 + 50
-        GLUT.glutBitmapString(font, high_score_text.encode(), x_pos, y_pos)
-        
-        # Draw start button
-        button_width = 200
-        button_height = 50
-        button_x = self.width // 2 - button_width // 2
-        button_y = self.height // 2 + 100
-        button_color = (0.8, 0.8, 0.8)  # Light gray
-        
-        GL.glColor3f(*button_color)
-        GL.glRectf(button_x, button_y, button_x + button_width, button_y + button_height)
-        
-        # Draw start text
-        start_text = "Start Game"
-        start_x = button_x + 30
-        start_y = button_y + 15
-        GLUT.glutBitmapString(font, start_text.encode(), start_x, start_y)
-        
-        GLUT.glutSwapBuffers()
+        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Level: {self.level}".encode())
+        GL.glRasterPos2f(10, self.height - 80)
+        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Speed Increment: +{self.speed_increment}".encode())
 
     def display(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
         GL.glLoadIdentity()
-        
-        # Apply screen shake
-        GL.glTranslatef(self.shake_offset['x'], self.shake_offset['y'], 0)
 
-        # Draw targets
-        for target in self.targets:
-            self.draw_target(target)
+        # Flash the screen if score > 1000
+        if self.is_flashing:
+            current_time = time.time()
+            if current_time - self.flash_start_time < self.flash_duration:
+                # Alternate between flash color and black
+                if int((current_time - self.flash_start_time) * 10) % 2 == 0:
+                    GL.glClearColor(*self.flash_color, 1.0)
+                else:
+                    GL.glClearColor(0.0, 0.0, 0.0, 1.0)
+                GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+            else:
+                self.is_flashing = False
+                GL.glClearColor(0.0, 0.0, 0.0, 1.0)
 
-        # Draw powerups
-        for powerup in self.powerups:
-            self.draw_powerup(powerup)
-
-        # Draw scope with stability effect
-        scope_x = self.scope_x + random.uniform(-2, 2) * self.scope_stability
-        scope_y = self.scope_y + random.uniform(-2, 2) * self.scope_stability
-        self.draw_scope(scope_x, scope_y)
-        
-        # Draw feedback
-        self.draw_feedback()
-        
-        # Draw HUD
+        self.draw_targets()
+        self.draw_scope()
         self.draw_hud()
 
         if self.game_over:
             GL.glColor3f(1.0, 0.0, 0.0)
-            GL.glRasterPos2f(self.width//2 - 150, self.height//2)
-            GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, 
-                                 f"Game Over! Final Score: {self.score}".encode())
-            GL.glRasterPos2f(self.width//2 - 100, self.height//2 - 30)
-            GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, 
-                                 b"Press R to restart")
+            GL.glRasterPos2f(self.width//2 - 100, self.height//2)
+            GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Game Over! Final Score: {self.score}".encode())
+            GL.glRasterPos2f(self.width//2 - 80, self.height//2 - 30)
+            GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, b"Press R to Restart")
+
+            # Display saved scores
+            y_offset = 60
+            GL.glColor3f(0.0, 1.0, 0.0)  # Green for scores
+            for score_entry in self.scores[-5:]:  # Show last 5 scores
+                GL.glRasterPos2f(self.width//2 - 100, self.height//2 - y_offset)
+                GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Score {score_entry['index']}: {score_entry['score']} (Time: {score_entry['time']}s, Level: {score_entry['level']})".encode())
+                y_offset += 20
 
         GLUT.glutSwapBuffers()
 
-    # [Previous mouse, keyboard, and reshape methods remain the same]
-    # ... [Keep all the previous input handling methods]
+    def update(self):
+        if not self.game_over:
+            self.update_targets()
+            # Check if ammo is 0 and end the game
+            if self.ammo <= 0:
+                self.game_over = True
+                self.save_score()  # Save score when game ends
+
+            # Increase speed every 7 seconds
+            current_time = time.time()
+            if current_time - self.last_speed_increase >= 7:
+                self.speed_increment += 1
+                self.last_speed_increase = current_time
+                # Update speed of existing targets
+                for target in self.targets:
+                    target['speed'] += 1
+
+            # Start flash if score > 1000
+            if self.score > 1000 and not self.is_flashing:
+                self.is_flashing = True
+                self.flash_start_time = time.time()
+
+        GLUT.glutPostRedisplay()
+
     def mouse(self, button, state, x, y):
         if button == GLUT.GLUT_LEFT_BUTTON and state == GLUT.GLUT_DOWN:
             self.shoot(x, self.height - y)
 
     def keyboard(self, key, x, y):
-        if key == b' ':
-            self.shoot(self.scope_x, self.scope_y)
-        elif key == b'r' and self.game_over:
+        if key == b'r':  # Restart the game
             self.__init__()
-        elif key == b'q':
+        elif key == b'q':  # Quit the game
             GLUT.glutLeaveMainLoop()
 
     def mouse_motion(self, x, y):
@@ -522,27 +329,26 @@ class SniperGame:
         GL.glMatrixMode(GL.GL_MODELVIEW)
 
 def main():
-    game = SniperGame()
-    
+    game = MultiTargetSniperGame()
+
     GLUT.glutInit()
     GLUT.glutInitDisplayMode(GLUT.GLUT_DOUBLE | GLUT.GLUT_RGB)
     GLUT.glutInitWindowSize(game.width, game.height)
-    GLUT.glutCreateWindow(b"Advanced Sniper Hunt")
-    
-    GL.glClearColor(0.1, 0.1, 0.1, 0.0)  # Darker background
+    GLUT.glutCreateWindow(b"Multi-Target Sniper Game")
+
+    GL.glClearColor(0.0, 0.0, 0.0, 0.0)
     GL.glPointSize(2.0)
-    
+
     GLUT.glutDisplayFunc(game.display)
     GLUT.glutKeyboardFunc(game.keyboard)
     GLUT.glutMouseFunc(game.mouse)
     GLUT.glutPassiveMotionFunc(game.mouse_motion)
     GLUT.glutReshapeFunc(game.reshape)
-    
+
     def update(value):
         game.update()
-        GLUT.glutPostRedisplay()
         GLUT.glutTimerFunc(16, update, 0)
-    
+
     GLUT.glutTimerFunc(0, update, 0)
     GLUT.glutMainLoop()
 
