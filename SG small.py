@@ -3,6 +3,8 @@ import OpenGL.GLUT as GLUT
 import math
 import random
 import time
+import json
+import os
 
 class MultiTargetSniperGame:
     def __init__(self):
@@ -15,6 +17,9 @@ class MultiTargetSniperGame:
         self.ammo = 20
         self.game_over = False
         self.targets = self.spawn_targets()
+        self.start_time = time.time()  # Track game start time
+        self.scores_file = "scores.json"  # File to save scores
+        self.scores = self.load_scores()  # Load existing scores
 
     def spawn_targets(self):
         targets = []
@@ -131,9 +136,27 @@ class MultiTargetSniperGame:
         else:
             if self.ammo <= 0:
                 self.game_over = True
+                self.save_score()  # Save score when game ends
 
         if not self.targets:  # If all targets are destroyed, spawn new ones
             self.targets = self.spawn_targets()
+
+    def save_score(self):
+        elapsed_time = time.time() - self.start_time
+        score_entry = {
+            'index': len(self.scores) + 1,  # Auto-increment index
+            'score': self.score,
+            'time': round(elapsed_time, 2)  # Time in seconds, rounded to 2 decimal places
+        }
+        self.scores.append(score_entry)
+        with open(self.scores_file, 'w') as f:
+            json.dump(self.scores, f, indent=4)
+
+    def load_scores(self):
+        if os.path.exists(self.scores_file):
+            with open(self.scores_file, 'r') as f:
+                return json.load(f)
+        return []
 
     def draw_hud(self):
         GL.glColor3f(1.0, 1.0, 1.0)
@@ -156,6 +179,14 @@ class MultiTargetSniperGame:
             GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Game Over! Final Score: {self.score}".encode())
             GL.glRasterPos2f(self.width//2 - 80, self.height//2 - 30)
             GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, b"Press R to Restart")
+
+            # Display saved scores
+            y_offset = 60
+            GL.glColor3f(0.0, 1.0, 0.0)  # Green for scores
+            for score_entry in self.scores[-5:]:  # Show last 5 scores
+                GL.glRasterPos2f(self.width//2 - 100, self.height//2 - y_offset)
+                GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Score {score_entry['index']}: {score_entry['score']} (Time: {score_entry['time']}s)".encode())
+                y_offset += 20
 
         GLUT.glutSwapBuffers()
 
