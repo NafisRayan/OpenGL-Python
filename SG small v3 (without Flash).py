@@ -23,10 +23,6 @@ class MultiTargetSniperGame:
         self.scores_file = "scores.json"  # File to save scores
         self.scores = self.load_scores()  # Load existing scores
         self.last_speed_increase = time.time()  # Track last speed increase
-        self.flash_start_time = 0  # Track when the flash starts
-        self.is_flashing = False  # Track if the screen is flashing
-        self.flash_duration = 3  # Duration of the flash in seconds
-        self.flash_color = (1.0, 1.0, 1.0)  # Flash color (white)
 
     def spawn_targets(self):
         targets = []
@@ -155,60 +151,24 @@ class MultiTargetSniperGame:
             return
 
         self.ammo -= 1
-        hit = False
         for target in self.targets[:]:
             dx = x - target['x']
             dy = y - target['y']
             distance = math.sqrt(dx * dx + dy * dy)
 
-            if target['shape'] == 'circle' and distance < target['radius']:
-                hit = True
-            elif target['shape'] == 'square' and self.is_point_in_square(x, y, target['x'], target['y'], target['radius'] * 2):
-                hit = True
-            elif target['shape'] == 'triangle' and self.is_point_in_triangle(x, y, target['x'], target['y'], target['radius'] * 2):
-                hit = True
-
-            if hit:
+            if distance < target['radius']:
                 self.score += 100
                 self.targets.remove(target)
                 break
-
-        if not hit:
-            if self.is_flashing:  # End game if missed during flash
+        else:
+            if self.ammo <= 0:
                 self.game_over = True
-                self.save_score()
-            else:
-                if self.ammo <= 0:
-                    self.game_over = True
-                    self.save_score()
+                self.save_score()  # Save score when game ends
 
         if not self.targets:  # If all targets are destroyed, go to next level
             self.level += 1
             self.targets = self.spawn_targets()
             self.ammo += 10  # Refill ammo for the next level
-
-    def is_point_in_square(self, px, py, center_x, center_y, size):
-        half_size = size // 2
-        return (center_x - half_size <= px <= center_x + half_size and
-                center_y - half_size <= py <= center_y + half_size)
-
-    def is_point_in_triangle(self, px, py, center_x, center_y, size):
-        height = size * math.sqrt(3) / 2
-        x1, y1 = center_x, center_y + height / 2
-        x2, y2 = center_x - size / 2, center_y - height / 2
-        x3, y3 = center_x + size / 2, center_y - height / 2
-
-        def sign(a, b, c):
-            return (a[0] - c[0]) * (b[1] - c[1]) - (b[0] - c[0]) * (a[1] - c[1])
-
-        d1 = sign((px, py), (x1, y1), (x2, y2))
-        d2 = sign((px, py), (x2, y2), (x3, y3))
-        d3 = sign((px, py), (x3, y3), (x1, y1))
-
-        has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
-        has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
-
-        return not (has_neg and has_pos)
 
     def save_score(self):
         elapsed_time = time.time() - self.start_time
@@ -242,25 +202,11 @@ class MultiTargetSniperGame:
         GL.glRasterPos2f(10, self.height - 60)
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Level: {self.level}".encode())
         GL.glRasterPos2f(10, self.height - 80)
-        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Speed Increment: +{self.speed_increment}".encode())
+        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Time Increment: +{self.speed_increment}".encode())
 
     def display(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
         GL.glLoadIdentity()
-
-        # Flash the screen if score > 1000
-        if self.is_flashing:
-            current_time = time.time()
-            if current_time - self.flash_start_time < self.flash_duration:
-                # Alternate between flash color and black
-                if int((current_time - self.flash_start_time) * 10) % 2 == 0:
-                    GL.glClearColor(*self.flash_color, 1.0)
-                else:
-                    GL.glClearColor(0.0, 0.0, 0.0, 1.0)
-                GL.glClear(GL.GL_COLOR_BUFFER_BIT)
-            else:
-                self.is_flashing = False
-                GL.glClearColor(0.0, 0.0, 0.0, 1.0)
 
         self.draw_targets()
         self.draw_scope()
@@ -299,11 +245,6 @@ class MultiTargetSniperGame:
                 # Update speed of existing targets
                 for target in self.targets:
                     target['speed'] += 1
-
-            # Start flash if score > 1000
-            if self.score > 1000 and not self.is_flashing:
-                self.is_flashing = True
-                self.flash_start_time = time.time()
 
         GLUT.glutPostRedisplay()
 
