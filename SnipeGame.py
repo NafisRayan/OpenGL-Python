@@ -16,65 +16,72 @@ class MultiTargetSniperGame:
         self.score = 0
         self.ammo = 20
         self.game_over = False
-        self.level = 1  # Start at level 1
-        self.speed_increment = 0  # Initialize speed increment
+        self.level = 1
+        self.speed_increment = 0
         self.targets = self.spawn_targets()
-        self.start_time = time.time()  # Track game start time
-        self.scores_file = "scores.json"  # File to save scores
-        self.scores = self.load_scores()  # Load existing scores
-        self.last_speed_increase = time.time()  # Track last speed increase
-        self.flash_start_time = 0  # Track when the flash starts
-        self.is_flashing = False  # Track if the screen is flashing
-        self.flash_duration = 3  # Duration of the flash in seconds
-        self.flash_color = (1.0, 1.0, 1.0)  # Flash color (white)
+        self.start_time = time.time()
+        self.scores_file = "scores.json"
+        self.scores = self.load_scores()
+        self.last_speed_increase = time.time()
+        self.flash_start_time = 0
+        self.is_flashing = False
+        self.flash_duration = 3
+        self.flash_color = (1.0, 1.0, 1.0)
 
         self.wind_speed = random.uniform(0.5, 2.0)
         self.wind_direction = random.uniform(0, 2 * math.pi)
 
         # Perfect shot variables
-        self.perfect_shot = False  # Flag for perfect shot
-        self.perfect_shot_time = 0  # Time when the perfect shot occurred
-        self.perfect_shot_duration = 2  # Duration to display the message (in seconds)
+        self.perfect_shot = False
+        self.perfect_shot_time = 0
+        self.perfect_shot_duration = 2
 
         # Combo variables
-        self.combo = 0  # Combo counter
-        self.last_shot_time = 0  # Time of the last successful shot
-        self.combo_timeout = 2  # Combo timeout in seconds
+        self.combo = 0
+        self.last_shot_time = 0
+        self.combo_timeout = 2
+
+        # Recoil variables
+        self.recoil_offset_x = 0
+        self.recoil_offset_y = 0
+        self.recoil_duration = 0.1  # Duration of recoil in seconds
+        self.recoil_start_time = 0
+        self.recoil_intensity = 10  # How much the screen shakes
 
     def spawn_targets(self):
         targets = []
-        num_targets = 5 + self.level  # Increase number of targets with level
+        num_targets = 5 + self.level
         for _ in range(num_targets):
-            shape = random.choice(['circle', 'square', 'triangle'])  # Random shape
+            shape = random.choice(['circle', 'square', 'triangle'])
             target = {
                 'x': random.randint(100, self.width - 100),
                 'y': random.randint(100, self.height - 100),
-                'radius': random.randint(20, 40),  # Random radius
-                'speed': 2.0 + (self.level * 0.5) + self.speed_increment,  # Base speed + level + speed increment
+                'radius': random.randint(20, 40),
+                'speed': 2.0 + (self.level * 0.5) + self.speed_increment,
                 'direction': random.uniform(0, 2 * math.pi),
-                'color': (random.random(), random.random(), random.random()),  # Random color
-                'shape': shape  # Assign random shape
+                'color': (random.random(), random.random(), random.random()),
+                'shape': shape
             }
             targets.append(target)
         return targets
 
     def draw_scope(self):
         GL.glColor3f(1.0, 1.0, 1.0)
-        self.midpoint_circle(self.scope_x, self.scope_y, self.scope_radius)
-        self.midpoint_line(self.scope_x - self.scope_radius, self.scope_y,
-                          self.scope_x + self.scope_radius, self.scope_y)
-        self.midpoint_line(self.scope_x, self.scope_y - self.scope_radius,
-                          self.scope_x, self.scope_y + self.scope_radius)
+        self.midpoint_circle(self.scope_x + self.recoil_offset_x, self.scope_y + self.recoil_offset_y, self.scope_radius)
+        self.midpoint_line(self.scope_x - self.scope_radius + self.recoil_offset_x, self.scope_y + self.recoil_offset_y,
+                          self.scope_x + self.scope_radius + self.recoil_offset_x, self.scope_y + self.recoil_offset_y)
+        self.midpoint_line(self.scope_x + self.recoil_offset_x, self.scope_y - self.scope_radius + self.recoil_offset_y,
+                          self.scope_x + self.recoil_offset_x, self.scope_y + self.scope_radius + self.recoil_offset_y)
 
     def draw_targets(self):
         for target in self.targets:
             GL.glColor3f(*target['color'])
             if target['shape'] == 'circle':
-                self.midpoint_circle(target['x'], target['y'], target['radius'])
+                self.midpoint_circle(target['x'] + self.recoil_offset_x, target['y'] + self.recoil_offset_y, target['radius'])
             elif target['shape'] == 'square':
-                self.midpoint_square(target['x'], target['y'], target['radius'])
+                self.midpoint_square(target['x'] + self.recoil_offset_x, target['y'] + self.recoil_offset_y, target['radius'])
             elif target['shape'] == 'triangle':
-                self.midpoint_triangle(target['x'], target['y'], target['radius'])
+                self.midpoint_triangle(target['x'] + self.recoil_offset_x, target['y'] + self.recoil_offset_y, target['radius'])
 
     def midpoint_circle(self, center_x, center_y, radius):
         x = radius
@@ -195,34 +202,36 @@ class MultiTargetSniperGame:
             if hit:
                 self.score += 100
                 self.targets.remove(target)
-                # Check if the shot was perfect (hit the center)
-                if distance < 5:  # Adjust the threshold for "center" as needed
+                if distance < 5:
                     self.perfect_shot = True
                     self.perfect_shot_time = time.time()
-                # Update combo
                 current_time = time.time()
                 if current_time - self.last_shot_time < self.combo_timeout:
                     self.combo += 1
                 else:
-                    self.combo = 1  # Reset combo if timeout
+                    self.combo = 1
                 self.last_shot_time = current_time
                 break
 
         if not hit:
-            if self.is_flashing:  # End game if missed during flash
+            if self.is_flashing:
                 self.game_over = True
                 self.save_score()
             else:
                 if self.ammo <= 0:
                     self.game_over = True
                     self.save_score()
-            # Reset combo on miss
             self.combo = 0
 
-        if not self.targets:  # If all targets are destroyed, go to next level
+        if not self.targets:
             self.level += 1
             self.targets = self.spawn_targets()
-            self.ammo += 10  # Refill ammo for the next level
+            self.ammo += 10
+
+        # Trigger recoil
+        self.recoil_offset_x = random.uniform(-self.recoil_intensity, self.recoil_intensity)
+        self.recoil_offset_y = random.uniform(-self.recoil_intensity, self.recoil_intensity)
+        self.recoil_start_time = time.time()
 
     def is_point_in_square(self, px, py, center_x, center_y, size):
         half_size = size // 2
@@ -250,10 +259,10 @@ class MultiTargetSniperGame:
     def save_score(self):
         elapsed_time = time.time() - self.start_time
         score_entry = {
-            'index': len(self.scores) + 1,  # Auto-increment index
+            'index': len(self.scores) + 1,
             'score': self.score,
-            'time': round(elapsed_time, 2),  # Time in seconds, rounded to 2 decimal places
-            'level': self.level  # Save the level achieved
+            'time': round(elapsed_time, 2),
+            'level': self.level
         }
         self.scores.append(score_entry)
         with open(self.scores_file, 'w') as f:
@@ -263,47 +272,42 @@ class MultiTargetSniperGame:
         if os.path.exists(self.scores_file):
             with open(self.scores_file, 'r') as f:
                 scores = json.load(f)
-                # Ensure all score entries have the 'level' key
                 for entry in scores:
                     if 'level' not in entry:
-                        entry['level'] = 1  # Default level for older entries
+                        entry['level'] = 1
                 return scores
         return []
 
     def draw_hud(self):
         GL.glColor3f(1.0, 1.0, 1.0)
-        GL.glRasterPos2f(10, self.height - 20)
+        GL.glRasterPos2f(10 + self.recoil_offset_x, self.height - 20 + self.recoil_offset_y)
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Score: {self.score}".encode())
-        GL.glRasterPos2f(10, self.height - 40)
+        GL.glRasterPos2f(10 + self.recoil_offset_x, self.height - 40 + self.recoil_offset_y)
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Ammo: {self.ammo}".encode())
-        GL.glRasterPos2f(10, self.height - 60)
+        GL.glRasterPos2f(10 + self.recoil_offset_x, self.height - 60 + self.recoil_offset_y)
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Level: {self.level}".encode())
-        GL.glRasterPos2f(10, self.height - 80)
+        GL.glRasterPos2f(10 + self.recoil_offset_x, self.height - 80 + self.recoil_offset_y)
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Speed Increment: +{self.speed_increment}".encode())
 
-        # Display "Perfect Shot" message if applicable
         if self.perfect_shot and (time.time() - self.perfect_shot_time < self.perfect_shot_duration):
-            GL.glColor3f(1.0, 1.0, 0.0)  # Yellow color
-            GL.glRasterPos2f(self.width // 2 - 50, self.height - 100)
+            GL.glColor3f(1.0, 1.0, 0.0)
+            GL.glRasterPos2f(self.width // 2 - 50 + self.recoil_offset_x, self.height - 100 + self.recoil_offset_y)
             GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, b"Perfect Shot!")
         else:
-            self.perfect_shot = False  # Reset the flag after the duration expires
+            self.perfect_shot = False
 
-        # Display combo count
         if self.combo > 0:
-            GL.glColor3f(1.0, 1.0, 0.0)  # Yellow color
-            GL.glRasterPos2f(self.width // 2 - 30, self.height - 120)
+            GL.glColor3f(1.0, 1.0, 0.0)
+            GL.glRasterPos2f(self.width // 2 - 30 + self.recoil_offset_x, self.height - 120 + self.recoil_offset_y)
             GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Combo: {self.combo}x".encode())
 
     def display(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
         GL.glLoadIdentity()
 
-        # Flash the screen if score > 1000
         if self.is_flashing:
             current_time = time.time()
             if current_time - self.flash_start_time < self.flash_duration:
-                # Alternate between flash color and black
                 if int((current_time - self.flash_start_time) * 10) % 2 == 0:
                     GL.glClearColor(*self.flash_color, 1.0)
                 else:
@@ -319,16 +323,15 @@ class MultiTargetSniperGame:
 
         if self.game_over:
             GL.glColor3f(1.0, 0.0, 0.0)
-            GL.glRasterPos2f(self.width//2 - 100, self.height//2)
+            GL.glRasterPos2f(self.width//2 - 100 + self.recoil_offset_x, self.height//2 + self.recoil_offset_y)
             GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Game Over! Final Score: {self.score}".encode())
-            GL.glRasterPos2f(self.width//2 - 80, self.height//2 - 30)
+            GL.glRasterPos2f(self.width//2 - 80 + self.recoil_offset_x, self.height//2 - 30 + self.recoil_offset_y)
             GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, b"Press R to Restart")
 
-            # Display saved scores
             y_offset = 60
-            GL.glColor3f(0.0, 1.0, 0.0)  # Green for scores
-            for score_entry in self.scores[-5:]:  # Show last 5 scores
-                GL.glRasterPos2f(self.width//2 - 100, self.height//2 - y_offset)
+            GL.glColor3f(0.0, 1.0, 0.0)
+            for score_entry in self.scores[-5:]:
+                GL.glRasterPos2f(self.width//2 - 100 + self.recoil_offset_x, self.height//2 - y_offset + self.recoil_offset_y)
                 GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Score {score_entry['index']}: {score_entry['score']} (Time: {score_entry['time']}s, Level: {score_entry['level']})".encode())
                 y_offset += 20
 
@@ -337,24 +340,28 @@ class MultiTargetSniperGame:
     def update(self):
         if not self.game_over:
             self.update_targets()
-            # Check if ammo is 0 and end the game
             if self.ammo <= 0:
                 self.game_over = True
-                self.save_score()  # Save score when game ends
+                self.save_score()
 
-            # Increase speed every 7 seconds
             current_time = time.time()
             if current_time - self.last_speed_increase >= 7:
                 self.speed_increment += 1.5
                 self.last_speed_increase = current_time
-                # Update speed of existing targets
                 for target in self.targets:
                     target['speed'] += 1.5
 
-            # Start flash if score > 1000
             if self.score > 1000 and not self.is_flashing:
                 self.is_flashing = True
                 self.flash_start_time = time.time()
+
+            # Reduce recoil over time
+            if current_time - self.recoil_start_time < self.recoil_duration:
+                self.recoil_offset_x *= 0.9
+                self.recoil_offset_y *= 0.9
+            else:
+                self.recoil_offset_x = 0
+                self.recoil_offset_y = 0
 
         GLUT.glutPostRedisplay()
 
