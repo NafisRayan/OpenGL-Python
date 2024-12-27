@@ -23,10 +23,18 @@ class MultiTargetSniperGame:
         self.scores_file = "scores.json"  # File to save scores
         self.scores = self.load_scores()  # Load existing scores
         self.last_speed_increase = time.time()  # Track last speed increase
-        self.flash_start_time = 0  # Track when the flash starts
-        self.is_flashing = False  # Track if the screen is flashing
-        self.flash_duration = 3  # Duration of the flash in seconds
+        self.is_flashing = False
+        self.flash_start_time = 0
+        self.flash_duration = 1  # Duration of the flash in seconds
+        self.flash_cooldown = 1  # Cooldown period between flashes in seconds
+        self.last_flash_time = 0
         self.flash_color = (1.0, 1.0, 1.0)  # Flash color (white)
+        self.shake_intensity = 5  # Adjust this value to change the intensity of the shake
+        self.shake_duration = 0.1  # Duration of the shake effect in seconds
+        self.shake_start_time = 0
+        self.combo = 0
+        self.max_combo = 5
+        self.last_shot_time = time.time()
 
     def spawn_targets(self):
         targets = []
@@ -93,31 +101,54 @@ class MultiTargetSniperGame:
             GL.glVertex2f(px, py)
 
     def midpoint_square(self, center_x, center_y, size):
-        half_size = size // 2
+        half_size = int(size / 2)
+        
+        GL.glBegin(GL.GL_POINTS)
+        
+        # Top edge
+        for x in range(-half_size, half_size + 1):
+            GL.glVertex2f(center_x + x, center_y - half_size)
 
-        self.midpoint_line(center_x - half_size, center_y + half_size,
-                          center_x + half_size, center_y + half_size)
+        # Right edge
+        for y in range(-half_size, half_size + 1):
+            GL.glVertex2f(center_x + half_size, center_y + y)
 
-        self.midpoint_line(center_x - half_size, center_y - half_size,
-                          center_x + half_size, center_y - half_size)
+        # Bottom edge
+        for x in range(half_size, -half_size - 1, -1):
+            GL.glVertex2f(center_x + x, center_y + half_size)
 
-        self.midpoint_line(center_x - half_size, center_y - half_size,
-                          center_x - half_size, center_y + half_size)
+        # Left edge
+        for y in range(half_size, -half_size - 1, -1):
+            GL.glVertex2f(center_x - half_size, center_y + y)
+        
+        GL.glEnd()
 
-        self.midpoint_line(center_x + half_size, center_y - half_size,
-                          center_x + half_size, center_y + half_size)
-    
     def midpoint_triangle(self, center_x, center_y, size):
         height = size * math.sqrt(3) / 2
+        
+        GL.glBegin(GL.GL_POINTS)
+        
+        # Calculate vertices of the equilateral triangle
+        v1 = (center_x, center_y + height / 2)
+        v2 = (center_x - size / 2, center_y - height / 2)
+        v3 = (center_x + size / 2, center_y - height / 2)
+        
+        # Function to interpolate between two points
+        def interpolate(p1, p2, steps):
+            dx = (p2[0] - p1[0]) / steps
+            dy = (p2[1] - p1[1]) / steps
+            for i in range(steps + 1):
+                yield (p1[0] + i * dx, p1[1] + i * dy)
+        
+        # Draw edges of the triangle
+        for p in interpolate(v1, v2, int(size)):
+            GL.glVertex2f(*p)
+        for p in interpolate(v2, v3, int(size)):
+            GL.glVertex2f(*p)
+        for p in interpolate(v3, v1, int(size)):
+            GL.glVertex2f(*p)
 
-        self.midpoint_line(center_x - size / 2, center_y - height / 2,
-                            center_x + size / 2, center_y - height / 2)
-
-        self.midpoint_line(center_x, center_y + height / 2,
-                          center_x - size / 2, center_y - height / 2)
-
-        self.midpoint_line(center_x, center_y + height / 2,
-                          center_x + size / 2, center_y - height / 2)
+        GL.glEnd()
 
     def midpoint_line(self, x1, y1, x2, y2):
         dx = abs(x2 - x1)
@@ -165,6 +196,8 @@ class MultiTargetSniperGame:
             return
 
         self.ammo -= 1
+        self.shake_start_time = time.time()
+        
         hit = False
         for target in self.targets[:]:
             dx = x - target['x']
@@ -173,24 +206,47 @@ class MultiTargetSniperGame:
 
             if target['shape'] == 'circle' and distance < target['radius']:
                 hit = True
-            elif target['shape'] == 'square' and self.is_point_in_square(x, y, target['x'], target['y'], target['radius'] * 2):
+            elif target['shape'] == 'square' and self.is_point_in_square(x, y, target['x'], target['y'], target['radius']):
                 hit = True
-            elif target['shape'] == 'triangle' and self.is_point_in_triangle(x, y, target['x'], target['y'], target['radius'] * 2):
+            elif target['shape'] == 'triangle' and self.is_point_in_triangle(x, y, target['x'], target['y'], target['radius']):
                 hit = True
 
             if hit:
                 self.score += 100
                 self.targets.remove(target)
                 break
+        
+        if hit:
+            current_time = time.time()
+            if current_time - self.last_shot_time < 1:  # If shot within 1 second of previous shot
+                self.combo += 1
+                if self.combo >= self.max_combo:
+                    self.combo = self.max_combo
+            else:
+                self.combo = 1
+            
+            self.last_shot_time = current_time
+        
+        if not hit:
+            if self.is_flashing:  # End game if missed during flash
+                self.game_over = True
+                self.save_score()
+            elif self.ammo <= 0:  # End game if out of ammo
+                self.game_over = True
+                self.save_score()
+        
+        if not self.targets:  # If all targets are destroyed, go to next level
+            self.level += 1
+            self.targets = self.spawn_targets()
+            self.ammo += 10  # Refill ammo for the next level
 
         if not hit:
             if self.is_flashing:  # End game if missed during flash
                 self.game_over = True
                 self.save_score()
-            else:
-                if self.ammo <= 0:
-                    self.game_over = True
-                    self.save_score()
+            elif self.ammo <= 0:  # End game if out of ammo
+                self.game_over = True
+                self.save_score()
 
         if not self.targets:  # If all targets are destroyed, go to next level
             self.level += 1
@@ -204,16 +260,18 @@ class MultiTargetSniperGame:
 
     def is_point_in_triangle(self, px, py, center_x, center_y, size):
         height = size * math.sqrt(3) / 2
-        x1, y1 = center_x, center_y + height / 2
-        x2, y2 = center_x - size / 2, center_y - height / 2
-        x3, y3 = center_x + size / 2, center_y - height / 2
-
+        
+        # Calculate vertices of the equilateral triangle
+        v1 = (center_x, center_y + height / 2)
+        v2 = (center_x - size / 2, center_y - height / 2)
+        v3 = (center_x + size / 2, center_y - height / 2)
+        
         def sign(a, b, c):
             return (a[0] - c[0]) * (b[1] - c[1]) - (b[0] - c[0]) * (a[1] - c[1])
 
-        d1 = sign((px, py), (x1, y1), (x2, y2))
-        d2 = sign((px, py), (x2, y2), (x3, y3))
-        d3 = sign((px, py), (x3, y3), (x1, y1))
+        d1 = sign((px, py), v1, v2)
+        d2 = sign((px, py), v2, v3)
+        d3 = sign((px, py), v3, v1)
 
         has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
         has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
@@ -253,12 +311,21 @@ class MultiTargetSniperGame:
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Level: {self.level}".encode())
         GL.glRasterPos2f(10, self.height - 80)
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Speed Increment: +{self.speed_increment}".encode())
+        GL.glRasterPos2f(10, self.height - 100)
+        GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Combo: {self.combo}".encode())
 
     def display(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
         GL.glLoadIdentity()
 
-        # Flash the screen if score > 1000
+        # Apply screen shake effect
+        current_time = time.time()
+        if current_time - self.shake_start_time < self.shake_duration:
+            shake_offset_x = random.uniform(-self.shake_intensity, self.shake_intensity)
+            shake_offset_y = random.uniform(-self.shake_intensity, self.shake_intensity)
+            GL.glTranslatef(shake_offset_x, shake_offset_y, 0)
+
+        # Flash the screen if score > 1000 and flash is active
         if self.is_flashing:
             current_time = time.time()
             if current_time - self.flash_start_time < self.flash_duration:
@@ -268,12 +335,11 @@ class MultiTargetSniperGame:
                 else:
                     GL.glClearColor(0.0, 0.0, 0.0, 1.0)
                 GL.glClear(GL.GL_COLOR_BUFFER_BIT)
-            else:
-                self.is_flashing = False
-                GL.glClearColor(0.0, 0.0, 0.0, 1.0)
 
-        self.draw_targets()
+        # Debug drawing
+        GL.glColor3f(1.0, 0.0, 0.0)  # Red color for debugging
         self.draw_scope()
+        self.draw_targets()
         self.draw_hud()
 
         if self.game_over:
@@ -290,30 +356,42 @@ class MultiTargetSniperGame:
                 GL.glRasterPos2f(self.width//2 - 100, self.height//2 - y_offset)
                 GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Score {score_entry['index']}: {score_entry['score']} (Time: {score_entry['time']}s, Level: {score_entry['level']})".encode())
                 y_offset += 20
-
+                
         GLUT.glutSwapBuffers()
 
     def update(self):
         if not self.game_over:
             self.update_targets()
-            # Check if ammo is 0 and end the game
-            if self.ammo <= 0:
-                self.game_over = True
-                self.save_score()  # Save score when game ends
-
+        
             # Increase speed every 7 seconds
             current_time = time.time()
             if current_time - self.last_speed_increase >= 7:
                 self.speed_increment += 1
                 self.last_speed_increase = current_time
+
                 # Update speed of existing targets
                 for target in self.targets:
                     target['speed'] += 1
 
-            # Start flash if score > 1000
-            if self.score > 1000 and not self.is_flashing:
-                self.is_flashing = True
-                self.flash_start_time = time.time()
+            # Handle flashing
+            current_time = time.time()
+            # Handle flashing
+            if random.random() < 0.8:  # 20% chance of starting a flash
+                if self.score > 1000 and not self.is_flashing:
+                        self.is_flashing = True
+                        self.flash_start_time = current_time
+                        self.last_flash_time = current_time
+
+            if self.is_flashing:
+                current_time = time.time()
+                if current_time - self.flash_start_time < self.flash_duration:
+                    if int((current_time - self.flash_start_time) * 10) % 2 == 0:
+                        GL.glClearColor(*self.flash_color, 1.0)
+                    else:
+                        GL.glClearColor(0.0, 0.0, 0.0, 1.0)
+                GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+
+
 
         GLUT.glutPostRedisplay()
 
@@ -337,6 +415,7 @@ class MultiTargetSniperGame:
         GL.glLoadIdentity()
         GL.glOrtho(0, width, 0, height, -1.0, 1.0)
         GL.glMatrixMode(GL.GL_MODELVIEW)
+        GL.glLoadIdentity()
 
 def main():
     game = MultiTargetSniperGame()

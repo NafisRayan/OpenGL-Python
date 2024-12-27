@@ -142,5 +142,29 @@
         "score": 1100,
         "time": 19.56,
         "level": 2
+    },
+    {
+        "index": 25,
+        "score": 400,
+        "time": 20.52,
+        "level": 1
+    },
+    {
+        "index": 26,
+        "score": 400,
+        "time": 20.53,
+        "level": 1
+    },
+    {
+        "index": 27,
+        "score": 1300,
+        "time": 27.85,
+        "level": 3
+    },
+    {
+        "index": 28,
+        "score": 1100,
+        "time": 20.45,
+        "level": 2
     }
 ]
