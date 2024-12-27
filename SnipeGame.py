@@ -28,6 +28,9 @@ class MultiTargetSniperGame:
         self.flash_duration = 3  # Duration of the flash in seconds
         self.flash_color = (1.0, 1.0, 1.0)  # Flash color (white)
 
+        self.wind_speed = random.uniform(0.5, 2.0)
+        self.wind_direction = random.uniform(0, 2 * math.pi)
+
     def spawn_targets(self):
         targets = []
         num_targets = 5 + self.level  # Increase number of targets with level
@@ -151,9 +154,10 @@ class MultiTargetSniperGame:
 
     def update_targets(self):
         for target in self.targets:
-            target['x'] += math.cos(target['direction']) * target['speed']
-            target['y'] += math.sin(target['direction']) * target['speed']
-
+            # Apply wind effect
+            target['x'] += math.cos(target['direction']) * (target['speed'] + self.wind_speed * math.cos(self.wind_direction))
+            target['y'] += math.sin(target['direction']) * (target['speed'] + self.wind_speed * math.sin(self.wind_direction))
+    
             # Bounce off walls
             if target['x'] - target['radius'] < 0 or target['x'] + target['radius'] > self.width:
                 target['direction'] = math.pi - target['direction']
@@ -304,11 +308,11 @@ class MultiTargetSniperGame:
             # Increase speed every 7 seconds
             current_time = time.time()
             if current_time - self.last_speed_increase >= 7:
-                self.speed_increment += 1
+                self.speed_increment += 1.5
                 self.last_speed_increase = current_time
                 # Update speed of existing targets
                 for target in self.targets:
-                    target['speed'] += 1
+                    target['speed'] += 1.5
 
             # Start flash if score > 1000
             if self.score > 1000 and not self.is_flashing:
