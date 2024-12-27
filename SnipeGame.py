@@ -36,6 +36,11 @@ class MultiTargetSniperGame:
         self.perfect_shot_time = 0  # Time when the perfect shot occurred
         self.perfect_shot_duration = 2  # Duration to display the message (in seconds)
 
+        # Combo variables
+        self.combo = 0  # Combo counter
+        self.last_shot_time = 0  # Time of the last successful shot
+        self.combo_timeout = 2  # Combo timeout in seconds
+
     def spawn_targets(self):
         targets = []
         num_targets = 5 + self.level  # Increase number of targets with level
@@ -194,6 +199,13 @@ class MultiTargetSniperGame:
                 if distance < 5:  # Adjust the threshold for "center" as needed
                     self.perfect_shot = True
                     self.perfect_shot_time = time.time()
+                # Update combo
+                current_time = time.time()
+                if current_time - self.last_shot_time < self.combo_timeout:
+                    self.combo += 1
+                else:
+                    self.combo = 1  # Reset combo if timeout
+                self.last_shot_time = current_time
                 break
 
         if not hit:
@@ -204,6 +216,8 @@ class MultiTargetSniperGame:
                 if self.ammo <= 0:
                     self.game_over = True
                     self.save_score()
+            # Reset combo on miss
+            self.combo = 0
 
         if not self.targets:  # If all targets are destroyed, go to next level
             self.level += 1
@@ -274,6 +288,12 @@ class MultiTargetSniperGame:
             GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, b"Perfect Shot!")
         else:
             self.perfect_shot = False  # Reset the flag after the duration expires
+
+        # Display combo count
+        if self.combo > 0:
+            GL.glColor3f(1.0, 1.0, 0.0)  # Yellow color
+            GL.glRasterPos2f(self.width // 2 - 30, self.height - 120)
+            GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Combo: {self.combo}x".encode())
 
     def display(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
