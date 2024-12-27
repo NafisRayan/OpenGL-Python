@@ -31,6 +31,11 @@ class MultiTargetSniperGame:
         self.wind_speed = random.uniform(0.5, 2.0)
         self.wind_direction = random.uniform(0, 2 * math.pi)
 
+        # Perfect shot variables
+        self.perfect_shot = False  # Flag for perfect shot
+        self.perfect_shot_time = 0  # Time when the perfect shot occurred
+        self.perfect_shot_duration = 2  # Duration to display the message (in seconds)
+
     def spawn_targets(self):
         targets = []
         num_targets = 5 + self.level  # Increase number of targets with level
@@ -185,6 +190,10 @@ class MultiTargetSniperGame:
             if hit:
                 self.score += 100
                 self.targets.remove(target)
+                # Check if the shot was perfect (hit the center)
+                if distance < 5:  # Adjust the threshold for "center" as needed
+                    self.perfect_shot = True
+                    self.perfect_shot_time = time.time()
                 break
 
         if not hit:
@@ -257,6 +266,14 @@ class MultiTargetSniperGame:
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Level: {self.level}".encode())
         GL.glRasterPos2f(10, self.height - 80)
         GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, f"Speed Increment: +{self.speed_increment}".encode())
+
+        # Display "Perfect Shot" message if applicable
+        if self.perfect_shot and (time.time() - self.perfect_shot_time < self.perfect_shot_duration):
+            GL.glColor3f(1.0, 1.0, 0.0)  # Yellow color
+            GL.glRasterPos2f(self.width // 2 - 50, self.height - 100)
+            GLUT.glutBitmapString(GLUT.GLUT_BITMAP_HELVETICA_18, b"Perfect Shot!")
+        else:
+            self.perfect_shot = False  # Reset the flag after the duration expires
 
     def display(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
